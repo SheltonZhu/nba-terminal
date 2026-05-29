@@ -42,6 +42,17 @@ Build:
 go build ./...
 ```
 
+## Release
+
+Create and push a version tag to publish a GitHub release:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release workflow runs tests, builds macOS/Linux/Windows binaries for amd64 and arm64, uploads checksums, and generates release notes from git history.
+
 ## Notes
 
 This tool parses Hupu HTML with CSS selectors. If Hupu changes the page structure, parsing may need to be updated in `parser.go`.

@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests
+        run: go test -count=1 ./...
+
+      - name: Build release binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist
+
+          platforms=(
+            "darwin amd64"
+            "darwin arm64"
+            "linux amd64"
+            "linux arm64"
+            "windows amd64"
+            "windows arm64"
+          )
+
+          for platform in "${platforms[@]}"; do
+            read -r goos goarch <<< "$platform"
+            name="nba-terminal_${GITHUB_REF_NAME}_${goos}_${goarch}"
+            binary="nba-terminal"
+
+            if [[ "$goos" == "windows" ]]; then
+              binary="nba-terminal.exe"
+            fi
+
+            mkdir -p "dist/$name"
+            GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build \
+              -trimpath \
+              -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
+              -o "dist/$name/$binary" .
+
+            tar -C "dist/$name" -czf "dist/$name.tar.gz" .
+            rm -rf "dist/$name"
+          done
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          shasum -a 256 *.tar.gz > checksums.txt
+
+      - name: Generate release log
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          previous_tag="$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)"
+
+          {
+            echo "# ${tag}"
+            echo
+            if [[ -n "$previous_tag" ]]; then
+              echo "Changes since ${previous_tag}:"
+              git log --pretty=format:"- %s (%h)" "${previous_tag}..${tag}"
+            else
+              echo "Initial release changes:"
+              git log --pretty=format:"- %s (%h)" "${tag}"
+            fi
+            echo
+            echo
+            echo "Artifacts include macOS, Linux, and Windows builds for amd64 and arm64."
+          } > dist/RELEASE_NOTES.md
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/*.tar.gz \
+            dist/checksums.txt \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file dist/RELEASE_NOTES.md
