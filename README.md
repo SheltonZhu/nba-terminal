@@ -8,6 +8,8 @@ A terminal NBA live score viewer for Hupu's NBA game pages.
 - Refreshes every 3 seconds while any game is live.
 - Stops list polling automatically when no games are live.
 - Opens a selected game's text live feed.
+- Shows box score stats in the match detail view.
+- Supports live/stats tabs and scrolling inside match details.
 - Supports keyboard navigation in a Bubble Tea TUI.
 
 ## Requirements
@@ -41,6 +43,8 @@ Keyboard controls:
 
 - `up` / `down`: move selection
 - `enter`: open live detail
+- `tab`: switch live and stats tabs in detail view
+- `up` / `down` or `j` / `k`: scroll detail rows
 - `esc`: return to game list
 - `q` or `ctrl+c`: quit
 

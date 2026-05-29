@@ -15,6 +15,7 @@ const (
 type Fetcher interface {
 	FetchMatches() ([]Match, error)
 	FetchLiveDetail(Match) (LiveDetail, error)
+	FetchBoxScoreDetail(Match) (BoxScoreDetail, error)
 }
 
 type HTTPFetcher struct {
@@ -57,6 +58,20 @@ func (f *HTTPFetcher) FetchLiveDetail(match Match) (LiveDetail, error) {
 	defer body.Close()
 
 	return ParseLiveDetail(body)
+}
+
+func (f *HTTPFetcher) FetchBoxScoreDetail(match Match) (BoxScoreDetail, error) {
+	if match.DataStatisticsURL == "" {
+		return BoxScoreDetail{}, fmt.Errorf("match has no data statistics url")
+	}
+
+	body, err := f.get(match.DataStatisticsURL)
+	if err != nil {
+		return BoxScoreDetail{}, err
+	}
+	defer body.Close()
+
+	return ParseBoxScoreDetail(body)
 }
 
 func (f *HTTPFetcher) get(url string) (io.ReadCloser, error) {

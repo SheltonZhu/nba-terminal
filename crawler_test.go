@@ -72,3 +72,38 @@ func TestHTTPFetcherFetchLiveDetailRequiresLiveURL(t *testing.T) {
 		t.Fatal("expected error for match without live url")
 	}
 }
+
+func TestHTTPFetcherFetchBoxScoreDetailParsesDataStatisticsURL(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`
+<div class="team_vs"><div class="team_a">湖人</div><div class="team_b">凯尔特人</div></div>
+<div class="gamecenter_content_l">
+  <div class="table_list_live"><table>
+    <tr><th>球员</th><th>时间</th><th>得分</th><th>篮板</th><th>助攻</th></tr>
+    <tr><td>詹姆斯</td><td>35</td><td>28</td><td>7</td><td>9</td></tr>
+  </table></div>
+  <div class="table_list_live"><table>
+    <tr><th>球员</th><th>时间</th><th>得分</th><th>篮板</th><th>助攻</th></tr>
+    <tr><td>塔图姆</td><td>37</td><td>31</td><td>8</td><td>5</td></tr>
+  </table></div>
+</div>`))
+	}))
+	defer server.Close()
+
+	fetcher := NewHTTPFetcher("unused", server.Client())
+	detail, err := fetcher.FetchBoxScoreDetail(Match{DataStatisticsURL: server.URL})
+	if err != nil {
+		t.Fatalf("FetchBoxScoreDetail returned error: %v", err)
+	}
+	if detail.Team1.Name != "湖人" || detail.Team1.Players[0].Points != "28" {
+		t.Fatalf("unexpected box score detail: %#v", detail)
+	}
+}
+
+func TestHTTPFetcherFetchBoxScoreDetailRequiresDataStatisticsURL(t *testing.T) {
+	fetcher := NewHTTPFetcher("unused", &http.Client{Timeout: time.Second})
+
+	if _, err := fetcher.FetchBoxScoreDetail(Match{}); err == nil {
+		t.Fatal("expected error for match without data statistics url")
+	}
+}
