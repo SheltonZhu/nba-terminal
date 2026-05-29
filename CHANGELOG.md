@@ -5,6 +5,8 @@ All notable changes to this project are documented here.
 ## Unreleased
 
 - Added tag-based release workflow that tests, builds cross-platform binaries, generates checksums, and publishes GitHub release notes.
+- Added match detail tabs for live text and box score stats.
+- Added scrolling in match detail views.
 
 ## v0.1.1
 

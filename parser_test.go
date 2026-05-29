@@ -120,3 +120,46 @@ func TestParseLiveDetailParsesRowsAndFinishState(t *testing.T) {
 		t.Fatalf("unexpected first row: %q", detail.LiveTextRows[0])
 	}
 }
+
+func TestParseBoxScoreDetailParsesTeamAndPlayerStats(t *testing.T) {
+	html := `
+<div class="team_vs">
+  <div class="team_a">湖人</div>
+  <div class="team_b">凯尔特人</div>
+</div>
+<div class="gamecenter_content_l">
+  <div class="table_list_live">
+    <table>
+      <tr><th>球员</th><th>时间</th><th>得分</th><th>篮板</th><th>助攻</th><th>抢断</th><th>盖帽</th><th>失误</th><th>犯规</th></tr>
+      <tr><td>詹姆斯</td><td>35</td><td>28</td><td>7</td><td>9</td><td>2</td><td>1</td><td>3</td><td>2</td></tr>
+      <tr><td>戴维斯</td><td>33</td><td>24</td><td>12</td><td>3</td><td>1</td><td>4</td><td>2</td><td>3</td></tr>
+    </table>
+  </div>
+  <div class="table_list_live">
+    <table>
+      <tr><th>球员</th><th>时间</th><th>得分</th><th>篮板</th><th>助攻</th><th>抢断</th><th>盖帽</th><th>失误</th><th>犯规</th></tr>
+      <tr><td>塔图姆</td><td>37</td><td>31</td><td>8</td><td>5</td><td>1</td><td>0</td><td>4</td><td>2</td></tr>
+    </table>
+  </div>
+</div>`
+
+	detail, err := ParseBoxScoreDetail(strings.NewReader(html))
+	if err != nil {
+		t.Fatalf("ParseBoxScoreDetail returned error: %v", err)
+	}
+
+	if detail.Team1.Name != "湖人" || detail.Team2.Name != "凯尔特人" {
+		t.Fatalf("unexpected team names: %#v", detail)
+	}
+	if len(detail.Team1.Players) != 2 || len(detail.Team2.Players) != 1 {
+		t.Fatalf("unexpected players: %#v", detail)
+	}
+
+	player := detail.Team1.Players[0]
+	if player.Name != "詹姆斯" || player.Minutes != "35" || player.Points != "28" || player.Rebounds != "7" || player.Assists != "9" {
+		t.Fatalf("unexpected first player: %#v", player)
+	}
+	if player.Steals != "2" || player.Blocks != "1" || player.Turnovers != "3" || player.Fouls != "2" {
+		t.Fatalf("unexpected defensive/misc stats: %#v", player)
+	}
+}

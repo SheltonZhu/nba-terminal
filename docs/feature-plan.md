@@ -10,7 +10,7 @@
 
 ## Current Recommendation
 
-Start with **Feature 1: Detail tabs, scrolling, and box score stats**. It closes the largest gap from the original implementation guide and improves the main user workflow after selecting a game.
+Next recommended feature: **Feature 2: CLI Flags And Version Output**. Feature 1 is complete, and version/help flags are the smallest release-quality improvement left.
 
 ## Feature 1: Detail Tabs, Scrolling, And Box Score Stats
 
@@ -32,25 +32,25 @@ Start with **Feature 1: Detail tabs, scrolling, and box score stats**. It closes
 
 **Implementation Tasks:**
 
-- [ ] Add `BoxScoreDetail`, `TeamStats`, and `PlayerStat` structs to `model.go`.
-- [ ] Add `ParseBoxScoreDetail(io.Reader) (BoxScoreDetail, error)` to `parser.go`.
-- [ ] Add parser tests using static Hupu-like HTML with `.team_vs` and two `.table_list_live` stat tables.
-- [ ] Extend `Fetcher` with `FetchBoxScoreDetail(Match) (BoxScoreDetail, error)`.
-- [ ] Add HTTP fetcher tests for `DataStatisticsURL`.
-- [ ] Add detail view state: active tab, vertical scroll offset, live rows, stats rows.
-- [ ] Add keys: `tab` switches live/stats, `up/down` or `j/k` scroll, `esc` returns to list.
-- [ ] Render a compact stats table with columns for player, minutes, points, rebounds, assists, steals, blocks, turnovers, and fouls when present.
-- [ ] Update README controls and feature list.
-- [ ] Update CHANGELOG under `Unreleased`.
-- [ ] Run `go test -count=1 ./...`.
-- [ ] Run `go build ./...`.
-- [ ] Commit with `feat: add detail tabs and box score stats`.
+- [x] Add `BoxScoreDetail`, `TeamStats`, and `PlayerStat` structs to `model.go`.
+- [x] Add `ParseBoxScoreDetail(io.Reader) (BoxScoreDetail, error)` to `parser.go`.
+- [x] Add parser tests using static Hupu-like HTML with `.team_vs` and two `.table_list_live` stat tables.
+- [x] Extend `Fetcher` with `FetchBoxScoreDetail(Match) (BoxScoreDetail, error)`.
+- [x] Add HTTP fetcher tests for `DataStatisticsURL`.
+- [x] Add detail view state: active tab, vertical scroll offset, live rows, stats rows.
+- [x] Add keys: `tab` switches live/stats, `up/down` or `j/k` scroll, `esc` returns to list.
+- [x] Render a compact stats table with columns for player, minutes, points, rebounds, assists, steals, blocks, turnovers, and fouls when present.
+- [x] Update README controls and feature list.
+- [x] Update CHANGELOG under `Unreleased`.
+- [x] Run `go test -count=1 ./...`.
+- [x] Run `go build ./...`.
+- [x] Commit with `feat: add detail tabs and box score stats`.
 
 **Completion Record:**
 
-- Completed in commit:
+- Completed in commit: this commit
 - Released in:
-- Notes:
+- Notes: Added live/stats tabs, detail scrolling, Hupu-like box score parsing, and compact terminal stats rendering.
 
 ## Feature 2: CLI Flags And Version Output
 

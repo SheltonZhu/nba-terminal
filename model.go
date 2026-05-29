@@ -41,3 +41,29 @@ type LiveDetail struct {
 	IsFinished   bool
 	LiveTextRows []string
 }
+
+type BoxScoreDetail struct {
+	Team1 TeamStats
+	Team2 TeamStats
+}
+
+func (d BoxScoreDetail) IsEmpty() bool {
+	return len(d.Team1.Players) == 0 && len(d.Team2.Players) == 0
+}
+
+type TeamStats struct {
+	Name    string
+	Players []PlayerStat
+}
+
+type PlayerStat struct {
+	Name      string
+	Minutes   string
+	Points    string
+	Rebounds  string
+	Assists   string
+	Steals    string
+	Blocks    string
+	Turnovers string
+	Fouls     string
+}

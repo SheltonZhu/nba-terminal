@@ -10,6 +10,7 @@ import (
 type fakeFetcher struct {
 	matches []Match
 	detail  LiveDetail
+	stats   BoxScoreDetail
 	err     error
 }
 
@@ -19,6 +20,10 @@ func (f fakeFetcher) FetchMatches() ([]Match, error) {
 
 func (f fakeFetcher) FetchLiveDetail(Match) (LiveDetail, error) {
 	return f.detail, f.err
+}
+
+func (f fakeFetcher) FetchBoxScoreDetail(Match) (BoxScoreDetail, error) {
+	return f.stats, f.err
 }
 
 func TestAppAppliesMatchesAndSchedulesRefreshOnlyWhenLive(t *testing.T) {
@@ -83,6 +88,51 @@ func TestAppViewRendersMatchRows(t *testing.T) {
 	for _, want := range []string{"NBA 实时比分", "湖人", "108 - 105", "Q4 02:31"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected view to contain %q, got:\n%s", want, view)
+		}
+	}
+}
+
+func TestAppDetailTabsScrollingAndStatsRendering(t *testing.T) {
+	app := NewApp(fakeFetcher{}, 80, 16)
+	app.viewMode = detailView
+	app.matches = []Match{{Team1Name: "湖人", Team2Name: "凯尔特人", Status: StatusLiving, MatchTime: "Q4 02:31", Team1Score: "108", Team2Score: "105"}}
+	app.detail = LiveDetail{LiveTextRows: []string{
+		"row 1",
+		"row 2",
+		"row 3",
+		"row 4",
+		"row 5",
+		"row 6",
+	}}
+	app.boxScore = BoxScoreDetail{
+		Team1: TeamStats{Name: "湖人", Players: []PlayerStat{{Name: "詹姆斯", Minutes: "35", Points: "28", Rebounds: "7", Assists: "9", Steals: "2", Blocks: "1", Turnovers: "3", Fouls: "2"}}},
+		Team2: TeamStats{Name: "凯尔特人", Players: []PlayerStat{{Name: "塔图姆", Minutes: "37", Points: "31", Rebounds: "8", Assists: "5"}}},
+	}
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyDown})
+	app = model.(App)
+	if app.detailScroll != 1 {
+		t.Fatalf("expected detail scroll 1, got %d", app.detailScroll)
+	}
+
+	view := app.View()
+	if strings.Contains(view, "row 1") {
+		t.Fatalf("expected row 1 to scroll out of view, got:\n%s", view)
+	}
+	if !strings.Contains(view, "row 2") {
+		t.Fatalf("expected scrolled live row in view, got:\n%s", view)
+	}
+
+	model, _ = app.Update(tea.KeyMsg{Type: tea.KeyTab})
+	app = model.(App)
+	if app.detailTab != statsTab {
+		t.Fatalf("expected stats tab, got %v", app.detailTab)
+	}
+
+	view = app.View()
+	for _, want := range []string{"统计", "詹姆斯", "28", "塔图姆", "31"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected stats view to contain %q, got:\n%s", want, view)
 		}
 	}
 }
