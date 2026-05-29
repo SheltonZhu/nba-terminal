@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -13,7 +14,7 @@ const (
 )
 
 type Fetcher interface {
-	FetchMatches() ([]Match, error)
+	FetchMatches(time.Time) ([]Match, error)
 	FetchLiveDetail(Match) (LiveDetail, error)
 	FetchBoxScoreDetail(Match) (BoxScoreDetail, error)
 }
@@ -36,14 +37,21 @@ func NewHTTPFetcher(gamesURL string, client *http.Client) *HTTPFetcher {
 	}
 }
 
-func (f *HTTPFetcher) FetchMatches() ([]Match, error) {
-	body, err := f.get(f.gamesURL)
+func (f *HTTPFetcher) FetchMatches(date time.Time) ([]Match, error) {
+	body, err := f.get(f.gamesURLForDate(date))
 	if err != nil {
 		return nil, err
 	}
 	defer body.Close()
 
 	return ParseMatches(body)
+}
+
+func (f *HTTPFetcher) gamesURLForDate(date time.Time) string {
+	if date.IsZero() || sameDay(date, time.Now()) {
+		return f.gamesURL
+	}
+	return strings.TrimRight(f.gamesURL, "/") + "/" + date.Format("2006-01-02")
 }
 
 func (f *HTTPFetcher) FetchLiveDetail(match Match) (LiveDetail, error) {

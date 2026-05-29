@@ -28,7 +28,7 @@ func TestHTTPFetcherFetchMatchesUsesConfiguredClientAndUserAgent(t *testing.T) {
 
 	fetcher := NewHTTPFetcher(server.URL, &http.Client{Timeout: time.Second})
 
-	matches, err := fetcher.FetchMatches()
+	matches, err := fetcher.FetchMatches(time.Time{})
 	if err != nil {
 		t.Fatalf("FetchMatches returned error: %v", err)
 	}
@@ -37,6 +37,25 @@ func TestHTTPFetcherFetchMatchesUsesConfiguredClientAndUserAgent(t *testing.T) {
 	}
 	if gotUserAgent == "" {
 		t.Fatal("expected User-Agent header to be set")
+	}
+}
+
+func TestHTTPFetcherFetchMatchesUsesDatePath(t *testing.T) {
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_, _ = w.Write([]byte(`<div class="table_list_l" date="2026-05-28"></div>`))
+	}))
+	defer server.Close()
+
+	fetcher := NewHTTPFetcher(server.URL+"/games", server.Client())
+
+	_, err := fetcher.FetchMatches(time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("FetchMatches returned error: %v", err)
+	}
+	if gotPath != "/games/2026-05-28" {
+		t.Fatalf("expected dated games path, got %q", gotPath)
 	}
 }
 

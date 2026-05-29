@@ -37,6 +37,17 @@ func (m Match) IsLive() bool {
 	return m.Status == StatusLiving
 }
 
+func (m Match) StatusLabel() string {
+	switch m.Status {
+	case StatusLiving:
+		return "直播"
+	case StatusEnded:
+		return "结束"
+	default:
+		return "未赛"
+	}
+}
+
 type LiveDetail struct {
 	IsFinished   bool
 	LiveTextRows []string
