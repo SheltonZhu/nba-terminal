@@ -12,7 +12,7 @@ A terminal NBA live score viewer for Hupu's NBA game pages.
 
 ## Requirements
 
-- Go 1.24 or newer
+- Go 1.21 or newer
 - Network access to `https://nba.hupu.com/games`
 
 ## Installation
