@@ -28,17 +28,21 @@ const (
 type App struct {
 	fetcher Fetcher
 
-	matches      []Match
-	selected     int
-	detail       LiveDetail
-	boxScore     BoxScoreDetail
-	viewMode     viewMode
-	detailTab    detailTab
-	detailScroll int
-	loading      bool
-	err          string
-	width        int
-	height       int
+	matches          []Match
+	selected         int
+	detail           LiveDetail
+	boxScore         BoxScoreDetail
+	viewMode         viewMode
+	detailTab        detailTab
+	detailScroll     int
+	loading          bool
+	err              string
+	width            int
+	height           int
+	currentDate      time.Time
+	favoriteTeams    map[string]bool
+	saveFavorites    func(map[string]bool) error
+	choosingFavorite bool
 }
 
 type matchesLoadedMsg struct {
@@ -60,11 +64,21 @@ type refreshMatchesMsg struct{}
 type refreshLiveDetailMsg struct{}
 
 func NewApp(fetcher Fetcher, width, height int) App {
+	return NewAppWithFavorites(fetcher, width, height, nil, nil)
+}
+
+func NewAppWithFavorites(fetcher Fetcher, width, height int, favorites map[string]bool, saveFavorites func(map[string]bool) error) App {
+	if favorites == nil {
+		favorites = map[string]bool{}
+	}
 	return App{
-		fetcher:  fetcher,
-		viewMode: listView,
-		width:    width,
-		height:   height,
+		fetcher:       fetcher,
+		viewMode:      listView,
+		width:         width,
+		height:        height,
+		currentDate:   startOfDay(time.Now()),
+		favoriteTeams: cloneFavorites(favorites),
+		saveFavorites: saveFavorites,
 	}
 }
 
@@ -127,13 +141,17 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.loading = true
-		return a, a.fetchLiveDetailCmd(a.matches[a.selected])
+		match := a.selectedMatch()
+		return a, tea.Batch(a.fetchLiveDetailCmd(match), a.fetchBoxScoreDetailCmd(match))
 	default:
 		return a, nil
 	}
 }
 
 func (a App) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if a.choosingFavorite {
+		return a.updateFavoriteChoice(msg)
+	}
 	switch msg.Type {
 	case tea.KeyCtrlC:
 		return a, tea.Quit
@@ -155,7 +173,7 @@ func (a App) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case tea.KeyEnter:
 		if a.viewMode == listView && len(a.matches) > 0 {
-			match := a.matches[a.selected]
+			match := a.selectedMatch()
 			a.viewMode = detailView
 			a.detail = LiveDetail{}
 			a.boxScore = BoxScoreDetail{}
@@ -178,6 +196,23 @@ func (a App) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q":
 			return a, tea.Quit
+		case "f":
+			if a.viewMode == listView && len(a.matches) > 0 {
+				a.choosingFavorite = true
+			}
+		case "[":
+			a = a.changeDate(-1)
+			return a, a.fetchMatchesCmd()
+		case "]":
+			a = a.changeDate(1)
+			return a, a.fetchMatchesCmd()
+		case "t":
+			a.currentDate = startOfDay(time.Now())
+			a.selected = 0
+			a.matches = nil
+			a.loading = true
+			a.err = ""
+			return a, a.fetchMatchesCmd()
 		case "j":
 			if a.viewMode == detailView {
 				a.detailScroll++
@@ -189,6 +224,55 @@ func (a App) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return a, nil
+}
+
+func (a App) updateFavoriteChoice(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.Type == tea.KeyEsc {
+		a.choosingFavorite = false
+		return a, nil
+	}
+	if msg.Type != tea.KeyRunes || len(a.matches) == 0 {
+		return a, nil
+	}
+	match := a.selectedMatch()
+	switch msg.String() {
+	case "1":
+		a.toggleFavorite(match.Team1Name)
+	case "2":
+		a.toggleFavorite(match.Team2Name)
+	default:
+		return a, nil
+	}
+	a.choosingFavorite = false
+	if a.saveFavorites != nil {
+		if err := a.saveFavorites(cloneFavorites(a.favoriteTeams)); err != nil {
+			a.err = err.Error()
+		}
+	}
+	return a, nil
+}
+
+func (a *App) toggleFavorite(team string) {
+	if team == "" {
+		return
+	}
+	if a.favoriteTeams == nil {
+		a.favoriteTeams = map[string]bool{}
+	}
+	if a.favoriteTeams[team] {
+		delete(a.favoriteTeams, team)
+		return
+	}
+	a.favoriteTeams[team] = true
+}
+
+func (a App) changeDate(days int) App {
+	a.currentDate = startOfDay(a.currentDate.AddDate(0, 0, days))
+	a.selected = 0
+	a.matches = nil
+	a.loading = true
+	a.err = ""
+	return a
 }
 
 func (a *App) toggleDetailTab() {
@@ -208,7 +292,7 @@ func (a App) View() string {
 }
 
 func (a App) listView() string {
-	title := titleStyle.Render("NBA 实时比分")
+	title := titleStyle.Render(fmt.Sprintf("NBA 实时比分  %s", a.currentDate.Format("2006-01-02")))
 	var lines []string
 	lines = append(lines, title, "")
 
@@ -218,26 +302,54 @@ func (a App) listView() string {
 	if len(a.matches) == 0 {
 		lines = append(lines, "今日没有比赛")
 	} else {
-		for i, match := range a.matches {
+		for i, match := range a.visibleMatches() {
 			cursor := " "
 			if i == a.selected {
 				cursor = ">"
 			}
-			lines = append(lines, fmt.Sprintf("%s %s", cursor, renderMatchRow(match)))
+			lines = append(lines, fmt.Sprintf("%s %s", cursor, renderMatchRow(match, a.favoriteTeams)))
 		}
+	}
+
+	if a.choosingFavorite && len(a.matches) > 0 {
+		match := a.selectedMatch()
+		lines = append(lines, "", mutedStyle.Render(fmt.Sprintf("收藏球队: 1 %s  2 %s  Esc 取消", match.Team1Name, match.Team2Name)))
 	}
 
 	if a.loading {
 		lines = append(lines, "", mutedStyle.Render("刷新中..."))
 	}
-	lines = append(lines, "", mutedStyle.Render("↑↓ 选择  Enter 详情  q 退出"))
+	lines = append(lines, "", mutedStyle.Render("↑↓ 选择  Enter 详情  [ 前一天  ] 后一天  t 今天  q 退出"))
 	return strings.Join(lines, "\n")
+}
+
+func (a App) visibleMatches() []Match {
+	matches := make([]Match, 0, len(a.matches))
+	for _, match := range a.matches {
+		if isFavoriteMatch(match, a.favoriteTeams) {
+			matches = append(matches, match)
+		}
+	}
+	for _, match := range a.matches {
+		if !isFavoriteMatch(match, a.favoriteTeams) {
+			matches = append(matches, match)
+		}
+	}
+	return matches
+}
+
+func (a App) selectedMatch() Match {
+	matches := a.visibleMatches()
+	if len(matches) == 0 || a.selected >= len(matches) {
+		return Match{}
+	}
+	return matches[a.selected]
 }
 
 func (a App) detailView() string {
 	match := Match{}
 	if len(a.matches) > 0 && a.selected < len(a.matches) {
-		match = a.matches[a.selected]
+		match = a.selectedMatch()
 	}
 
 	var lines []string
@@ -280,14 +392,14 @@ func (a App) detailView() string {
 
 func (a App) detailRows() []string {
 	if a.detailTab == statsTab {
-		return renderBoxScoreRows(a.boxScore)
+		return renderBoxScoreRows(a.boxScore, a.width)
 	}
 	return a.detail.LiveTextRows
 }
 
 func (a App) fetchMatchesCmd() tea.Cmd {
 	return func() tea.Msg {
-		matches, err := a.fetcher.FetchMatches()
+		matches, err := a.fetcher.FetchMatches(a.currentDate)
 		return matchesLoadedMsg{matches: matches, err: err}
 	}
 }
@@ -330,8 +442,16 @@ func hasLiveMatch(matches []Match) bool {
 	return false
 }
 
-func renderMatchRow(match Match) string {
-	return fmt.Sprintf("%-8s %-9s %-8s %s", match.Team1Name, match.ScoreText(), match.Team2Name, match.MatchTime)
+func renderMatchRow(match Match, favorites map[string]bool) string {
+	marker := " "
+	if isFavoriteMatch(match, favorites) {
+		marker = "*"
+	}
+	return fmt.Sprintf("%s %-4s %-8s %-9s %-8s %s", marker, match.StatusLabel(), match.Team1Name, match.ScoreText(), match.Team2Name, match.MatchTime)
+}
+
+func isFavoriteMatch(match Match, favorites map[string]bool) bool {
+	return favorites[match.Team1Name] || favorites[match.Team2Name]
 }
 
 func renderDetailTabs(active detailTab) string {
@@ -347,58 +467,116 @@ func renderDetailTabs(active detailTab) string {
 	return live + "  " + stats
 }
 
-func renderBoxScoreRows(detail BoxScoreDetail) []string {
+func renderBoxScoreRows(detail BoxScoreDetail, maxWidth int) []string {
 	if detail.IsEmpty() {
 		return nil
 	}
 
-	widths := boxScoreColumnWidths(detail)
+	columns := boxScoreColumnsForWidth(detail, maxWidth)
+	widths := boxScoreColumnWidths(detail, columns)
 	rows := []string{}
-	rows = appendTeamStatsRows(rows, detail.Team1, widths)
+	rows = appendTeamStatsRows(rows, detail.Team1, columns, widths)
 	if len(detail.Team1.Players) > 0 && len(detail.Team2.Players) > 0 {
 		rows = append(rows, "")
 	}
-	rows = appendTeamStatsRows(rows, detail.Team2, widths)
+	rows = appendTeamStatsRows(rows, detail.Team2, columns, widths)
 	return rows
 }
 
-func appendTeamStatsRows(rows []string, team TeamStats, widths []int) []string {
+func appendTeamStatsRows(rows []string, team TeamStats, columns []boxScoreColumn, widths []int) []string {
 	if len(team.Players) == 0 {
 		return rows
 	}
 	if team.Name != "" {
 		rows = append(rows, titleStyle.Render(team.Name))
 	}
-	rows = append(rows, renderBoxScoreLine(widths, []string{"球员", "时间", "得分", "篮板", "助攻", "抢断", "盖帽", "失误", "犯规"}))
+	rows = append(rows, renderBoxScoreLine(widths, boxScoreHeaderValues(columns)))
 	for _, player := range team.Players {
-		rows = append(rows, renderBoxScoreLine(widths, []string{
-			player.Name,
-			player.Minutes,
-			player.Points,
-			player.Rebounds,
-			player.Assists,
-			player.Steals,
-			player.Blocks,
-			player.Turnovers,
-			player.Fouls,
-		}))
+		rows = append(rows, renderBoxScoreLine(widths, boxScorePlayerValues(player, columns)))
 	}
 	return rows
 }
 
-func boxScoreColumnWidths(detail BoxScoreDetail) []int {
-	widths := []int{12, 4, 4, 4, 4, 4, 4, 4, 4}
-	for index, header := range []string{"球员", "时间", "得分", "篮板", "助攻", "抢断", "盖帽", "失误", "犯规"} {
-		updateColumnWidth(widths, index, header)
+type boxScoreColumn struct {
+	header string
+	value  func(PlayerStat) string
+}
+
+func allBoxScoreColumns() []boxScoreColumn {
+	return []boxScoreColumn{
+		{header: "球员", value: func(p PlayerStat) string { return p.Name }},
+		{header: "时间", value: func(p PlayerStat) string { return p.Minutes }},
+		{header: "得分", value: func(p PlayerStat) string { return p.Points }},
+		{header: "篮板", value: func(p PlayerStat) string { return p.Rebounds }},
+		{header: "助攻", value: func(p PlayerStat) string { return p.Assists }},
+		{header: "抢断", value: func(p PlayerStat) string { return p.Steals }},
+		{header: "盖帽", value: func(p PlayerStat) string { return p.Blocks }},
+		{header: "失误", value: func(p PlayerStat) string { return p.Turnovers }},
+		{header: "犯规", value: func(p PlayerStat) string { return p.Fouls }},
+	}
+}
+
+func boxScoreColumnsForWidth(detail BoxScoreDetail, maxWidth int) []boxScoreColumn {
+	columns := allBoxScoreColumns()
+	if maxWidth <= 0 {
+		return columns
+	}
+	for len(columns) > 5 {
+		widths := boxScoreColumnWidths(detail, columns)
+		if boxScoreLineWidth(widths) <= maxWidth {
+			break
+		}
+		columns = columns[:len(columns)-1]
+	}
+	return columns
+}
+
+func boxScoreColumnWidths(detail BoxScoreDetail, columns []boxScoreColumn) []int {
+	widths := make([]int, len(columns))
+	for index := range widths {
+		widths[index] = 4
+	}
+	if len(widths) > 0 {
+		widths[0] = 12
+	}
+	for index, column := range columns {
+		updateColumnWidth(widths, index, column.header)
 	}
 	for _, team := range []TeamStats{detail.Team1, detail.Team2} {
 		for _, player := range team.Players {
-			for index, value := range []string{player.Name, player.Minutes, player.Points, player.Rebounds, player.Assists, player.Steals, player.Blocks, player.Turnovers, player.Fouls} {
-				updateColumnWidth(widths, index, value)
+			for index, column := range columns {
+				updateColumnWidth(widths, index, column.value(player))
 			}
 		}
 	}
 	return widths
+}
+
+func boxScoreHeaderValues(columns []boxScoreColumn) []string {
+	values := make([]string, 0, len(columns))
+	for _, column := range columns {
+		values = append(values, column.header)
+	}
+	return values
+}
+
+func boxScorePlayerValues(player PlayerStat, columns []boxScoreColumn) []string {
+	values := make([]string, 0, len(columns))
+	for _, column := range columns {
+		values = append(values, column.value(player))
+	}
+	return values
+}
+
+func boxScoreLineWidth(widths []int) int {
+	width := 0
+	for index, columnWidth := range widths {
+		width += columnWidth
+		if index > 0 {
+			width += 2
+		}
+	}
+	return width
 }
 
 func updateColumnWidth(widths []int, index int, value string) {
