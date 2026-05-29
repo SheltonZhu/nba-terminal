@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type fakeFetcher struct {
@@ -135,4 +136,53 @@ func TestAppDetailTabsScrollingAndStatsRendering(t *testing.T) {
 			t.Fatalf("expected stats view to contain %q, got:\n%s", want, view)
 		}
 	}
+}
+
+func TestRenderBoxScoreRowsAlignsWidePlayerNames(t *testing.T) {
+	rows := renderBoxScoreRows(BoxScoreDetail{
+		Team1: TeamStats{Name: "雷霆", Players: []PlayerStat{
+			{Name: "谢伊-吉尔杰斯-亚历山大", Minutes: "28", Points: "15", Rebounds: "1", Assists: "4", Steals: "0", Blocks: "0", Turnovers: "2", Fouls: "1"},
+			{Name: "贾里德·麦凯恩", Minutes: "27", Points: "13", Rebounds: "2", Assists: "6", Steals: "2", Blocks: "0", Turnovers: "2", Fouls: "1"},
+			{Name: "Chet Holmgren", Minutes: "24", Points: "10", Rebounds: "11", Assists: "1", Steals: "1", Blocks: "4", Turnovers: "0", Fouls: "2"},
+		}},
+	})
+	if len(rows) < 5 {
+		t.Fatalf("expected title, header, and player rows, got %#v", rows)
+	}
+
+	header := rows[1]
+	cases := []struct {
+		row    string
+		minute string
+		point  string
+	}{
+		{row: rows[2], minute: "28", point: "15"},
+		{row: rows[3], minute: "27", point: "13"},
+		{row: rows[4], minute: "24", point: "10"},
+	}
+	for _, tc := range cases {
+		for headerName, value := range map[string]string{"时间": tc.minute, "得分": tc.point} {
+			wantColumn := displayEndColumn(header, headerName)
+			gotColumn := displayEndColumn(tc.row, value)
+			if gotColumn != wantColumn {
+				t.Fatalf("expected %q column to end at display column %d, got %d\nheader: %q\nrow:    %q", headerName, wantColumn, gotColumn, header, tc.row)
+			}
+		}
+	}
+}
+
+func displayColumn(row, value string) int {
+	byteIndex := strings.Index(row, value)
+	if byteIndex < 0 {
+		return -1
+	}
+	return lipgloss.Width(row[:byteIndex])
+}
+
+func displayEndColumn(row, value string) int {
+	column := displayColumn(row, value)
+	if column < 0 {
+		return column
+	}
+	return column + lipgloss.Width(value)
 }

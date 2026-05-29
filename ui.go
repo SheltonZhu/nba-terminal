@@ -352,25 +352,26 @@ func renderBoxScoreRows(detail BoxScoreDetail) []string {
 		return nil
 	}
 
+	widths := boxScoreColumnWidths(detail)
 	rows := []string{}
-	rows = appendTeamStatsRows(rows, detail.Team1)
+	rows = appendTeamStatsRows(rows, detail.Team1, widths)
 	if len(detail.Team1.Players) > 0 && len(detail.Team2.Players) > 0 {
 		rows = append(rows, "")
 	}
-	rows = appendTeamStatsRows(rows, detail.Team2)
+	rows = appendTeamStatsRows(rows, detail.Team2, widths)
 	return rows
 }
 
-func appendTeamStatsRows(rows []string, team TeamStats) []string {
+func appendTeamStatsRows(rows []string, team TeamStats, widths []int) []string {
 	if len(team.Players) == 0 {
 		return rows
 	}
 	if team.Name != "" {
 		rows = append(rows, titleStyle.Render(team.Name))
 	}
-	rows = append(rows, fmt.Sprintf("%-12s %5s %4s %4s %4s %4s %4s %4s %4s", "球员", "时间", "得分", "篮板", "助攻", "抢断", "盖帽", "失误", "犯规"))
+	rows = append(rows, renderBoxScoreLine(widths, []string{"球员", "时间", "得分", "篮板", "助攻", "抢断", "盖帽", "失误", "犯规"}))
 	for _, player := range team.Players {
-		rows = append(rows, fmt.Sprintf("%-12s %5s %4s %4s %4s %4s %4s %4s %4s",
+		rows = append(rows, renderBoxScoreLine(widths, []string{
 			player.Name,
 			player.Minutes,
 			player.Points,
@@ -380,9 +381,65 @@ func appendTeamStatsRows(rows []string, team TeamStats) []string {
 			player.Blocks,
 			player.Turnovers,
 			player.Fouls,
-		))
+		}))
 	}
 	return rows
+}
+
+func boxScoreColumnWidths(detail BoxScoreDetail) []int {
+	widths := []int{12, 4, 4, 4, 4, 4, 4, 4, 4}
+	for index, header := range []string{"球员", "时间", "得分", "篮板", "助攻", "抢断", "盖帽", "失误", "犯规"} {
+		updateColumnWidth(widths, index, header)
+	}
+	for _, team := range []TeamStats{detail.Team1, detail.Team2} {
+		for _, player := range team.Players {
+			for index, value := range []string{player.Name, player.Minutes, player.Points, player.Rebounds, player.Assists, player.Steals, player.Blocks, player.Turnovers, player.Fouls} {
+				updateColumnWidth(widths, index, value)
+			}
+		}
+	}
+	return widths
+}
+
+func updateColumnWidth(widths []int, index int, value string) {
+	if index >= len(widths) {
+		return
+	}
+	if width := lipgloss.Width(value); width > widths[index] {
+		widths[index] = width
+	}
+}
+
+func renderBoxScoreLine(widths []int, values []string) string {
+	parts := make([]string, 0, len(values))
+	for index, value := range values {
+		width := 0
+		if index < len(widths) {
+			width = widths[index]
+		}
+		if index == 0 {
+			parts = append(parts, padRightDisplay(value, width))
+		} else {
+			parts = append(parts, padLeftDisplay(value, width))
+		}
+	}
+	return strings.Join(parts, "  ")
+}
+
+func padRightDisplay(value string, width int) string {
+	padding := width - lipgloss.Width(value)
+	if padding <= 0 {
+		return value
+	}
+	return value + strings.Repeat(" ", padding)
+}
+
+func padLeftDisplay(value string, width int) string {
+	padding := width - lipgloss.Width(value)
+	if padding <= 0 {
+		return value
+	}
+	return strings.Repeat(" ", padding) + value
 }
 
 func clamp(value, minValue, maxValue int) int {
