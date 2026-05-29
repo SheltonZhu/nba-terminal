@@ -15,6 +15,22 @@ A terminal NBA live score viewer for Hupu's NBA game pages.
 - Go 1.24 or newer
 - Network access to `https://nba.hupu.com/games`
 
+## Installation
+
+Install the latest version from GitHub:
+
+```bash
+go install github.com/SheltonZhu/nba-terminal@latest
+```
+
+Then run:
+
+```bash
+nba-terminal
+```
+
+Make sure your Go binary directory is in `PATH`. By default, this is `$(go env GOPATH)/bin`, or `GOBIN` if you have set it.
+
 ## Usage
 
 ```bash
