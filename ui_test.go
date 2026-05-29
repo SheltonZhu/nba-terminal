@@ -93,7 +93,7 @@ func TestAppViewRendersMatchRows(t *testing.T) {
 	app.matches = []Match{{Team1Name: "湖人", Team2Name: "凯尔特人", Status: StatusLiving, MatchTime: "Q4 02:31", Team1Score: "108", Team2Score: "105"}}
 
 	view := app.View()
-	for _, want := range []string{"NBA 实时比分", "湖人", "108 - 105", "Q4 02:31"} {
+	for _, want := range []string{"NBA 实时比分", "湖人", "108 - 105", "Q4 02:31", "[ 前一天  ] 后一天"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected view to contain %q, got:\n%s", want, view)
 		}

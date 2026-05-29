@@ -319,7 +319,7 @@ func (a App) listView() string {
 	if a.loading {
 		lines = append(lines, "", mutedStyle.Render("刷新中..."))
 	}
-	lines = append(lines, "", mutedStyle.Render("↑↓ 选择  Enter 详情  [/] 日期  t 今天  q 退出"))
+	lines = append(lines, "", mutedStyle.Render("↑↓ 选择  Enter 详情  [ 前一天  ] 后一天  t 今天  q 退出"))
 	return strings.Join(lines, "\n")
 }
 
